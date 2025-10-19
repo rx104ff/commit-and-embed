@@ -130,7 +130,6 @@ details: "Add private notes or context here."
 `;
 
                     // Decide what to append later: Definitions get "Details" instead of "Proof & Details"
-                    //fix this part, I accidentally added some tabs and space here
                     const appendSection = kind === 'Definition'
                         ? `
 ## Details
