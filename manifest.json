@@ -1,11 +1,11 @@
 {
 	"id": "commit-and-embed",
 	"name": "Commit and Embed",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"minAppVersion": "0.15.0",
 	"description": "A plugin for Obsidian that enhances the note-taking experience with advanced math input capabilities.",
 	"author": "RX104FF",
 	"authorUrl": "https://github.com/rx104ff",
-	"repository": "https://github.com/rx104ff/math-input",
+	"repository": "https://github.com/rx104ff/commit-and-embed",
 	"isDesktopOnly": true
 }
