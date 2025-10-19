@@ -1,11 +1,11 @@
 {
-	"id": "math-input",
-	"name": "Math Input",
+	"id": "commit-and-embed",
+	"name": "Commit and Embed",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
+	"description": "A plugin for Obsidian that enhances the note-taking experience with advanced math input capabilities.",
 	"author": "RX104FF",
 	"authorUrl": "https://github.com/rx104ff",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"repository": "https://github.com/rx104ff/math-input",
 	"isDesktopOnly": true
 }

@@ -1,29 +1,31 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, TFolder, TFile, PluginSettingTab, Setting } from 'obsidian';
 import * as React from 'react';
 import { createRoot, Root } from 'react-dom/client';
-import FileNameReact from './react/FileNameModal';
+import FileNameReact, { ItemKind } from './react/FileNameModal';
 
 // --- Settings Interface ---
 // Defines the shape of our settings data
 interface CommitAndEmbedSettings {
     theoremCounter: number;
+    // configurable target folder for created items
+    targetFolder: string;
 }
 
 // --- Default Settings ---
-// The default values when the plugin first loads
 const DEFAULT_SETTINGS: CommitAndEmbedSettings = {
-    theoremCounter: 0
+    theoremCounter: 0,
+    targetFolder: 'Examples'
 }
 
 // --- FileNameModal Class (React-backed) ---
-// This modal mounts the React component into the modal content.
 class FileNameModal extends Modal {
-    result: string;
-    onSubmit: (result: string) => void;
+    resultName: string;
+    resultKind: ItemKind;
+    onSubmit: (result: { name: string; kind: ItemKind }) => void;
     private container: HTMLDivElement;
     private root: Root | null = null;
 
-    constructor(app: App, onSubmit: (result: string) => void) {
+    constructor(app: App, onSubmit: (result: { name: string; kind: ItemKind }) => void) {
         super(app);
         this.onSubmit = onSubmit;
         this.container = document.createElement('div');
@@ -31,16 +33,16 @@ class FileNameModal extends Modal {
 
     onOpen() {
         const { contentEl } = this;
-        // Let the React component render its own header; append container and mount
         contentEl.appendChild(this.container);
 
         this.root = createRoot(this.container);
         this.root.render(
             React.createElement(FileNameReact, {
-                onSubmit: (name: string) => {
-                    this.result = name;
+                onSubmit: (res: { name: string; kind: ItemKind }) => {
+                    this.resultName = res.name;
+                    this.resultKind = res.kind;
                     this.close();
-                    this.onSubmit(this.result);
+                    this.onSubmit(res);
                 },
                 onClose: () => {
                     this.close();
@@ -60,24 +62,17 @@ class FileNameModal extends Modal {
     }
 }
 
-// --- Main Plugin Class ---
-// This is the core of your plugin
 export default class CommitAndEmbedPlugin extends Plugin {
     settings: CommitAndEmbedSettings;
 
     async onload() {
-        // Load settings from disk when the plugin loads
         await this.loadSettings();
-
-        // Add a settings tab to the plugin settings
         this.addSettingTab(new CommitEmbedSettingTab(this.app, this));
 
-        // Add your main command
         this.addCommand({
             id: 'commit-and-embed-selection',
             name: 'Commit and Embed Selection',
             editorCallback: async (editor: Editor, view: MarkdownView) => {
-                
                 // 1. Get the user's selected text
                 const selectedText = editor.getSelection();
                 if (!selectedText) {
@@ -85,22 +80,23 @@ export default class CommitAndEmbedPlugin extends Plugin {
                     return;
                 }
 
-                // 2. Open the modal to ask for a file name
-                new FileNameModal(this.app, async (fileName) => {
-                    // This code runs after the user presses Enter in the modal
+                // 2. Open the modal to ask for a file name + kind
+                new FileNameModal(this.app, async (result) => {
+                    const fileName = result.name;
+                    const kind = result.kind;
+
                     if (!fileName) {
                         new Notice('Cancelled.');
                         return;
                     }
 
-                    // 3. Increment and save the theorem counter
+                    // 3. Increment and save the theorem counter (use same counter for all items)
                     const newTheoremNumber = this.settings.theoremCounter + 1;
                     this.settings.theoremCounter = newTheoremNumber;
                     await this.saveSettings();
 
-                    // 4. Define paths and check if the "Theorems" folder exists
-                    const theoremFolder = 'Theorems';
-                    // sanitize fileName (remove trailing/leading whitespace and strip slashes)
+                    // 4. Define paths and check if the configured folder exists
+                    const theoremFolder = this.settings.targetFolder || 'Theorems';
                     const safeName = fileName.replace(/[/\\]+/g, '-').trim();
                     const newFilePath = `${theoremFolder}/${safeName}.md`;
 
@@ -118,66 +114,86 @@ export default class CommitAndEmbedPlugin extends Plugin {
                     // 5. Create the unique block ID
                     const blockId = `thm-${Date.now()}`;
 
-                    // 6. Define the content for the new file
+                    // 6. Define the content for the new file (DO NOT include proof/details here)
+                    const kindLower = kind.toLowerCase();
+                    const calloutTag = kindLower; // e.g. "theorem", "lemma", "definition"
+                    // Callout label keeps the kind capitalized
+                    const calloutLabel = kind;
 
-					//Lets try to avoid directly putting Proof & Details in the block
-					const newFileContent = `---
-tags: [theorem, category-theory]
-details: "Add private notes or context here."
----
+                    const newFileContent = `---
+                        tags: [${calloutTag}, category-theory]
+                        details: "Add private notes or context here."
+                        ---
 
-> [!theorem] Theorem ${newTheoremNumber}: ${safeName} ^${blockId}
-> ${selectedText}
-`;
+                        > [!${calloutTag}] ${calloutLabel} ${newTheoremNumber}: ${safeName} ^${blockId}
+                        > ${selectedText}
+                    `;
 
-                    const proofSection = `
+                    // Decide what to append later: Definitions get "Details" instead of "Proof & Details"
+                    const appendSection = kind === 'Definition'
+                        ? `
+                            ## Details
 
-## Proof & Details
+                            (Write details, related examples, or additional context here...)
+                            `
+                                                    : `
 
-(Write proof, related examples, or additional context here...)
-`;
+                            ## Proof & Details
 
+                            (Write proof, related examples, or additional context here...)
+                        `;
                     try {
-                        // 7. Create the new file (without Proof & Details)
+                        // 7. Create the new file (without the appended section)
                         let created: TFile | null = null;
                         try {
                             created = await this.app.vault.create(newFilePath, newFileContent);
                         } catch (createErr) {
-                            // propagate to outer catch to handle duplicate/existing file error
                             throw createErr;
                         }
 
-                        // 7a. Append the proof section after creation so the original editor never receives it
+                        // 7a. Append the appropriate section after creation
                         try {
                             if (created instanceof TFile) {
-                                await this.app.vault.append(created, proofSection);
+                                await this.app.vault.append(created, appendSection);
                             } else {
                                 const maybeFile = this.app.vault.getAbstractFileByPath(newFilePath);
                                 if (maybeFile instanceof TFile) {
-                                    await this.app.vault.append(maybeFile, proofSection);
+                                    await this.app.vault.append(maybeFile, appendSection);
                                     created = maybeFile;
                                 } else {
-                                    console.warn('Could not locate created file to append proof section.');
+                                    console.warn('Could not locate created file to append section.');
                                 }
                             }
                         } catch (appendErr) {
-                            console.warn('Appending proof section failed:', appendErr);
+                            console.warn('Appending section failed:', appendErr);
                         }
 
                         if (created instanceof TFile) {
-                            // read file to ensure vault/cache have the latest content
                             await this.app.vault.read(created);
-                            // notify metadata cache that the file changed so embeds/transclusions refresh
                             this.app.metadataCache.trigger('changed', created);
                         }
-                        
+
                         // 8. Define the embed link to point ONLY to the block ID
-                        const embedLink = `![[${newFilePath}#^${blockId}]]`; 
-                        
+                        const embedLink = `![[${newFilePath}#^${blockId}]]`;
+
                         // 9. Replace the user's selection with the embed link
                         editor.replaceSelection(embedLink);
 
-						new Notice(`Theorem "${safeName}" created successfully.`);
+                        // 10. Notify and refresh active file to ensure no trailing content remains visible
+                        try {
+                            const activeFile = view.file;
+                            if (activeFile instanceof TFile) {
+                                // modify the active file's contents in the vault to ensure Obsidian re-parses
+                                const current = editor.getValue();
+                                await this.app.vault.modify(activeFile, current);
+                                this.app.metadataCache.trigger('changed', activeFile);
+                                await view.leaf.openFile(activeFile);
+                            }
+                        } catch (refreshErr) {
+                            console.warn('Refresh failed:', refreshErr);
+                        }
+
+                        new Notice(`${kind} "${safeName}" created successfully.`);
 
                     } catch (err) {
                         console.error("Error creating file:", err);
@@ -188,16 +204,12 @@ details: "Add private notes or context here."
         });
     }
 
-    onunload() {
-        // Clean up anything if needed when the plugin is disabled
-    }
+    onunload() {}
 
-    // Method to load settings
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     }
 
-    // Method to save settings
     async saveSettings() {
         await this.saveData(this.settings);
     }
@@ -217,6 +229,19 @@ class CommitEmbedSettingTab extends PluginSettingTab {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.createEl('h2', { text: 'Commit and Embed Settings' });
+
+        // Folder name setting (configurable target folder)
+        new Setting(containerEl)
+            .setName('Target folder')
+            .setDesc('Folder where created items will be saved. Will be created if it does not exist.')
+            .addText(text => text
+                .setPlaceholder('Theorems')
+                .setValue(this.plugin.settings.targetFolder)
+                .onChange(async (value) => {
+                    const folderName = value.trim() || 'Theorems';
+                    this.plugin.settings.targetFolder = folderName;
+                    await this.plugin.saveSettings();
+                }));
 
         // Add the setting to view/reset the counter
         new Setting(containerEl)
