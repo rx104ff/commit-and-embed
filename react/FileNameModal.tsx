@@ -1,5 +1,4 @@
 import * as React from 'react';
-const { useEffect, useRef, useState } = React;
 
 export type ItemKind = 'Theorem' | 'Lemma' | 'Proposition' | 'Corollary' | 'Definition';
 
@@ -8,13 +7,40 @@ export interface FileNameReactProps {
     onClose: () => void;
 }
 
-// Small unchanged UI but with a kind selector and returns both name+kind
-export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose }: FileNameReactProps) => {
-    const [value, setValue] = useState('');
-    const [kind, setKind] = useState<ItemKind>('Theorem');
-    const inputRef = useRef<HTMLInputElement | null>(null);
+const ACCENT = 'var(--interactive-accent, #2563eb)';        // primary (Save) color — blue fallback
+const ACCENT_HOVER = 'var(--interactive-accent-hover, #1e40af)';
+const NEUTRAL_BORDER = 'var(--interactive-border, #cfcfcf)';
+const TEXT_ON_ACCENT = 'var(--text-on-accent, #fff)';
 
-    useEffect(() => {
+const containerStyle: React.CSSProperties = {
+    minWidth: 340,
+    padding: 12,
+    fontFamily: 'var(--font-family)',
+    color: 'var(--text-normal)',
+    background: 'var(--background-primary)'
+};
+
+const headerStyle: React.CSSProperties = { marginTop: 0, marginBottom: 8 };
+const labelStyle: React.CSSProperties = { display: 'block', marginBottom: 8, fontSize: 13 };
+
+const inputStyle: React.CSSProperties = {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '8px 10px',
+    fontSize: 14,
+    borderRadius: 6,
+    border: `1px solid ${NEUTRAL_BORDER}`,
+    marginTop: 6,
+    background: 'var(--background-primary)'
+};
+
+export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose }: FileNameReactProps) => {
+    const [value, setValue] = React.useState('');
+    const [kind, setKind] = React.useState<ItemKind>('Theorem');
+    const [saveHover, setSaveHover] = React.useState(false);
+    const inputRef = React.useRef<HTMLInputElement | null>(null);
+
+    React.useEffect(() => {
         inputRef.current?.focus();
         const onKey = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
@@ -26,23 +52,44 @@ export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose 
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
 
+    const trimmed = value.trim();
     const submit = () => {
-        const trimmed = value.trim();
         if (!trimmed) return;
         onSubmit({ name: trimmed, kind });
         setValue('');
     };
 
-    return (
-        <div style={{ minWidth: 340 }}>
-            <h2 style={{ marginTop: 0 }}>Create item</h2>
+    const saveButtonStyle = (enabled: boolean): React.CSSProperties => ({
+        padding: '8px 14px',
+        borderRadius: 6,
+        cursor: enabled ? 'pointer' : 'not-allowed',
+        background: enabled ? (saveHover ? ACCENT_HOVER : ACCENT) : 'rgba(0,0,0,0.08)',
+        color: enabled ? TEXT_ON_ACCENT : 'var(--text-muted)',
+        border: 'none',
+        boxShadow: enabled && saveHover ? '0 6px 18px rgba(0,0,0,0.12)' : 'none',
+        transition: 'background .12s ease, box-shadow .12s ease, transform .06s ease',
+        transform: saveHover && enabled ? 'translateY(-1px)' : 'none'
+    });
 
-            <label style={{ display: 'block', marginBottom: 8 }}>
+    const cancelButtonStyle: React.CSSProperties = {
+        padding: '8px 12px',
+        borderRadius: 6,
+        cursor: 'pointer',
+        background: 'transparent',
+        color: 'var(--text-normal)',
+        border: `1px solid ${NEUTRAL_BORDER}`
+    };
+
+    return (
+        <div style={containerStyle}>
+            <h2 style={headerStyle}>Create item</h2>
+
+            <label style={labelStyle}>
                 Type
                 <select
                     value={kind}
                     onChange={(e) => setKind(e.target.value as ItemKind)}
-                    style={{ marginLeft: 8, padding: '6px 8px' }}
+                    style={{ marginLeft: 8, padding: '6px 8px', borderRadius: 6 }}
                 >
                     <option>Theorem</option>
                     <option>Lemma</option>
@@ -52,7 +99,7 @@ export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose 
                 </select>
             </label>
 
-            <label style={{ display: 'block', marginBottom: 8 }}>
+            <label style={labelStyle}>
                 Name
                 <input
                     ref={inputRef}
@@ -66,30 +113,28 @@ export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose 
                             submit();
                         }
                     }}
-                    style={{
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        padding: '6px 8px',
-                        fontSize: '14px',
-                        borderRadius: 4,
-                        border: '1px solid var(--interactive-border, #ccc)',
-                        marginTop: 6
-                    }}
+                    style={inputStyle}
+                    aria-label="Item name"
                 />
             </label>
 
-            <div style={{ marginTop: 10, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button
                     type="button"
                     onClick={() => submit()}
-                    style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
+                    onMouseEnter={() => setSaveHover(true)}
+                    onMouseLeave={() => setSaveHover(false)}
+                    style={saveButtonStyle(Boolean(trimmed))}
+                    aria-disabled={!trimmed}
+                    disabled={!trimmed}
                 >
-                    OK
+                    Save
                 </button>
+
                 <button
                     type="button"
                     onClick={() => onClose()}
-                    style={{ padding: '6px 10px', borderRadius: 4, cursor: 'pointer' }}
+                    style={cancelButtonStyle}
                 >
                     Cancel
                 </button>

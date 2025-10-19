@@ -121,27 +121,26 @@ export default class CommitAndEmbedPlugin extends Plugin {
                     const calloutLabel = kind;
 
                     const newFileContent = `---
-                        tags: [${calloutTag}, category-theory]
-                        details: "Add private notes or context here."
-                        ---
+tags: [${calloutTag}, category-theory]
+details: "Add private notes or context here."
+---
 
-                        > [!${calloutTag}] ${calloutLabel} ${newTheoremNumber}: ${safeName} ^${blockId}
-                        > ${selectedText}
-                    `;
+> [!${calloutTag}] ${calloutLabel} ${newTheoremNumber}: ${safeName} ^${blockId}
+> ${selectedText}
+`;
 
                     // Decide what to append later: Definitions get "Details" instead of "Proof & Details"
+                    //fix this part, I accidentally added some tabs and space here
                     const appendSection = kind === 'Definition'
                         ? `
-                            ## Details
+## Details
 
-                            (Write details, related examples, or additional context here...)
-                            `
-                                                    : `
+(Write details, related examples, or additional context here...)
+`: `
+## Proof & Details
 
-                            ## Proof & Details
-
-                            (Write proof, related examples, or additional context here...)
-                        `;
+(Write proof, related examples, or additional context here...)
+`;
                     try {
                         // 7. Create the new file (without the appended section)
                         let created: TFile | null = null;
