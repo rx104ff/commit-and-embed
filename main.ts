@@ -70,8 +70,8 @@ export default class CommitAndEmbedPlugin extends Plugin {
         this.addSettingTab(new CommitEmbedSettingTab(this.app, this));
 
         this.addCommand({
-            id: 'commit-and-embed-selection',
-            name: 'Commit and Embed Selection',
+            id: 'new-theory',
+            name: 'New Theory',
             editorCallback: async (editor: Editor, view: MarkdownView) => {
                 // 1. Get the user's selected text
                 const selectedText = editor.getSelection();
@@ -141,7 +141,7 @@ details: "Add private notes or context here."
 (Write proof, related examples, or additional context here...)
 `;
                     try {
-                        // 7. Create the new file (without the appended section)
+                        // 7a. Create the new file (without the appended section)
                         let created: TFile | null = null;
                         try {
                             created = await this.app.vault.create(newFilePath, newFileContent);
@@ -149,7 +149,7 @@ details: "Add private notes or context here."
                             throw createErr;
                         }
 
-                        // 7a. Append the appropriate section after creation
+                        // 7b. Append the appropriate section after creation
                         try {
                             if (created instanceof TFile) {
                                 await this.app.vault.append(created, appendSection);
