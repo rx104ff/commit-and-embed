@@ -70,8 +70,8 @@ export default class CommitAndEmbedPlugin extends Plugin {
         this.addSettingTab(new CommitEmbedSettingTab(this.app, this));
 
         this.addCommand({
-            id: 'new-theory',
-            name: 'New Theory',
+            id: 'new-theorem',
+            name: 'New Theorem',
             editorCallback: async (editor: Editor, view: MarkdownView) => {
                 // 1. Get the user's selected text
                 const selectedText = editor.getSelection();
