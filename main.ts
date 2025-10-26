@@ -4,10 +4,8 @@ import { createRoot, Root } from 'react-dom/client';
 import FileNameReact, { ItemKind } from './react/FileNameModal';
 
 // --- Settings Interface ---
-// Defines the shape of our settings data
 interface CommitAndEmbedSettings {
     theoremCounter: number;
-    // configurable target folder for created items
     targetFolder: string;
 }
 
@@ -62,6 +60,7 @@ class FileNameModal extends Modal {
     }
 }
 
+// --- Main Plugin Class ---
 export default class CommitAndEmbedPlugin extends Plugin {
     settings: CommitAndEmbedSettings;
 
@@ -71,34 +70,30 @@ export default class CommitAndEmbedPlugin extends Plugin {
 
         this.addCommand({
             id: 'new-theorem',
-            name: 'New Theorem',
+            name: 'New Theorem/Definition/Lemma',
             editorCallback: async (editor: Editor, view: MarkdownView) => {
-                // 1. Get the user's selected text
                 const selectedText = editor.getSelection();
                 if (!selectedText) {
                     new Notice('Error: No text selected.');
                     return;
                 }
 
-                // 2. Open the modal to ask for a file name + kind
                 new FileNameModal(this.app, async (result) => {
-                    const fileName = result.name;
+                    
+                    const userTitle = result.name.trim() || 'Untitled'; 
                     const kind = result.kind;
+                    const calloutLabel = kind; // "Theorem", "Definition", etc.
 
-                    if (!fileName) {
-                        new Notice('Cancelled.');
-                        return;
-                    }
-
-                    // 3. Increment and save the theorem counter (use same counter for all items)
                     const newTheoremNumber = this.settings.theoremCounter + 1;
                     this.settings.theoremCounter = newTheoremNumber;
                     await this.saveSettings();
 
-                    // 4. Define paths and check if the configured folder exists
                     const theoremFolder = this.settings.targetFolder || 'Theorems';
-                    const safeName = fileName.replace(/[/\\]+/g, '-').trim();
-                    const newFilePath = `${theoremFolder}/${safeName}.md`;
+                    
+                    const safeTitle = userTitle.replace(/[/\\]+/g, '-').trim();
+                    // Filename remains clear and searchable
+                    const newFileName = `${kind} ${newTheoremNumber} - ${safeTitle}`; 
+                    const newFilePath = `${theoremFolder}/${newFileName}.md`;
 
                     try {
                         const folder = this.app.vault.getAbstractFileByPath(theoremFolder);
@@ -107,29 +102,31 @@ export default class CommitAndEmbedPlugin extends Plugin {
                         }
                     } catch (e) {
                         console.error("Error creating folder:", e);
-                        new Notice('Error creating "Theorems" folder.');
+                        new Notice(`Error creating folder "${theoremFolder}".`);
                         return;
                     }
 
-                    // 5. Create the unique block ID
                     const blockId = `thm-${Date.now()}`;
-
-                    // 6. Define the content for the new file (DO NOT include proof/details here)
                     const kindLower = kind.toLowerCase();
-                    const calloutTag = kindLower; // e.g. "theorem", "lemma", "definition"
-                    // Callout label keeps the kind capitalized
-                    const calloutLabel = kind;
+                    const calloutTag = kindLower;
+
+                    // --- THIS IS THE FIX ---
+                    // Conditionally add parentheses only if a title was given
+                    const fullTitle = (userTitle === 'Untitled')
+                        ? `${calloutLabel} ${newTheoremNumber}` // e.g., "Theorem 7"
+                        : `${calloutLabel} ${newTheoremNumber} (${userTitle})`; // e.g., "Theorem 7 (Yoneda Lemma)"
+
+                    // --- END OF FIX ---
 
                     const newFileContent = `---
 tags: [${calloutTag}, category-theory]
 details: "Add private notes or context here."
 ---
 
-> [!${calloutTag}] ${calloutLabel} ${newTheoremNumber}: ${safeName} ^${blockId}
+> [!${calloutTag}] ${fullTitle} ^${blockId}
 > ${selectedText}
 `;
 
-                    // Decide what to append later: Definitions get "Details" instead of "Proof & Details"
                     const appendSection = kind === 'Definition'
                         ? `
 ## Details
@@ -141,7 +138,7 @@ details: "Add private notes or context here."
 (Write proof, related examples, or additional context here...)
 `;
                     try {
-                        // 7a. Create the new file (without the appended section)
+                        // (Your `vault.create` and `vault.append` logic)
                         let created: TFile | null = null;
                         try {
                             created = await this.app.vault.create(newFilePath, newFileContent);
@@ -149,7 +146,6 @@ details: "Add private notes or context here."
                             throw createErr;
                         }
 
-                        // 7b. Append the appropriate section after creation
                         try {
                             if (created instanceof TFile) {
                                 await this.app.vault.append(created, appendSection);
@@ -171,17 +167,14 @@ details: "Add private notes or context here."
                             this.app.metadataCache.trigger('changed', created);
                         }
 
-                        // 8. Define the embed link to point ONLY to the block ID
                         const embedLink = `![[${newFilePath}#^${blockId}]]`;
 
-                        // 9. Replace the user's selection with the embed link
                         editor.replaceSelection(embedLink);
 
-                        // 10. Notify and refresh active file to ensure no trailing content remains visible
+                        // (Your `vault.modify` refresh logic)
                         try {
                             const activeFile = view.file;
                             if (activeFile instanceof TFile) {
-                                // modify the active file's contents in the vault to ensure Obsidian re-parses
                                 const current = editor.getValue();
                                 await this.app.vault.modify(activeFile, current);
                                 this.app.metadataCache.trigger('changed', activeFile);
@@ -190,12 +183,13 @@ details: "Add private notes or context here."
                         } catch (refreshErr) {
                             console.warn('Refresh failed:', refreshErr);
                         }
-
-                        new Notice(`${kind} "${safeName}" created successfully.`);
+                        
+                        // The success notice will also use the new clean format
+                        new Notice(`"${fullTitle}" created successfully.`);
 
                     } catch (err) {
                         console.error("Error creating file:", err);
-                        new Notice(`Error: File "${safeName}" might already exist.`);
+                        new Notice(`Error: File "${newFileName}" might already exist.`);
                     }
                 }).open();
             }
@@ -214,7 +208,6 @@ details: "Add private notes or context here."
 }
 
 // --- Settings Tab Class ---
-// This creates the menu in Settings > Commit and Embed
 class CommitEmbedSettingTab extends PluginSettingTab {
     plugin: CommitAndEmbedPlugin;
 
@@ -228,7 +221,6 @@ class CommitEmbedSettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.createEl('h2', { text: 'Commit and Embed Settings' });
 
-        // Folder name setting (configurable target folder)
         new Setting(containerEl)
             .setName('Target folder')
             .setDesc('Folder where created items will be saved. Will be created if it does not exist.')
@@ -241,15 +233,14 @@ class CommitEmbedSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        // Add the setting to view/reset the counter
         new Setting(containerEl)
-            .setName('Theorem Counter')
-            .setDesc('This is the current theorem number. You can reset it by changing the value.')
+            .setName('Counter')
+            .setDesc('This is the current item number. You can reset it by changing the value.')
             .addText(text => text
                 .setPlaceholder('0')
                 .setValue(this.plugin.settings.theoremCounter.toString())
                 .onChange(async (value) => {
-                    const numValue = parseInt(value, 10); // Convert text to a number
+                    const numValue = parseInt(value, 10);
                     if (!isNaN(numValue)) {
                         this.plugin.settings.theoremCounter = numValue;
                         await this.plugin.saveSettings();

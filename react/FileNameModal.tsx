@@ -1,13 +1,16 @@
 import * as React from 'react';
 
+// Defines the types of items the user can create
 export type ItemKind = 'Theorem' | 'Lemma' | 'Proposition' | 'Corollary' | 'Definition';
 
+// Defines the component's props
 export interface FileNameReactProps {
     onSubmit: (result: { name: string; kind: ItemKind }) => void;
     onClose: () => void;
 }
 
-const ACCENT = 'var(--interactive-accent, #2563eb)';        // primary (Save) color — blue fallback
+// --- Style Constants ---
+const ACCENT = 'var(--interactive-accent, #2563eb)';
 const ACCENT_HOVER = 'var(--interactive-accent-hover, #1e40af)';
 const NEUTRAL_BORDER = 'var(--interactive-border, #cfcfcf)';
 const TEXT_ON_ACCENT = 'var(--text-on-accent, #fff)';
@@ -34,12 +37,24 @@ const inputStyle: React.CSSProperties = {
     background: 'var(--background-primary)'
 };
 
-export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose }: FileNameReactProps) => {
+const cancelButtonStyle: React.CSSProperties = {
+    padding: '8px 12px',
+    borderRadius: 6,
+    cursor: 'pointer',
+    background: 'transparent',
+    color: 'var(--text-normal)',
+    border: `1px solid ${NEUTRAL_BORDER}`
+};
+
+// --- React Component ---
+export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose }) => {
+    // --- State Hooks ---
     const [value, setValue] = React.useState('');
     const [kind, setKind] = React.useState<ItemKind>('Theorem');
     const [saveHover, setSaveHover] = React.useState(false);
     const inputRef = React.useRef<HTMLInputElement | null>(null);
 
+    // --- Effects ---
     React.useEffect(() => {
         inputRef.current?.focus();
         const onKey = (e: KeyboardEvent) => {
@@ -52,38 +67,32 @@ export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose 
         return () => window.removeEventListener('keydown', onKey);
     }, [onClose]);
 
-    const trimmed = value.trim();
+    // --- Handlers ---
     const submit = () => {
-        if (!trimmed) return;
+        const trimmed = value.trim(); 
         onSubmit({ name: trimmed, kind });
-        setValue('');
+        setValue(''); // Reset value after submit
     };
 
-    const saveButtonStyle = (enabled: boolean): React.CSSProperties => ({
+    // Style for the save button (depends on hover state)
+    const saveButtonStyle = (): React.CSSProperties => ({
         padding: '8px 14px',
         borderRadius: 6,
-        cursor: enabled ? 'pointer' : 'not-allowed',
-        background: enabled ? (saveHover ? ACCENT_HOVER : ACCENT) : 'rgba(0,0,0,0.08)',
-        color: enabled ? TEXT_ON_ACCENT : 'var(--text-muted)',
+        cursor: 'pointer',
+        background: saveHover ? ACCENT_HOVER : ACCENT,
+        color: TEXT_ON_ACCENT,
         border: 'none',
-        boxShadow: enabled && saveHover ? '0 6px 18px rgba(0,0,0,0.12)' : 'none',
+        boxShadow: saveHover ? '0 6px 18px rgba(0,0,0,0.12)' : 'none',
         transition: 'background .12s ease, box-shadow .12s ease, transform .06s ease',
-        transform: saveHover && enabled ? 'translateY(-1px)' : 'none'
+        transform: saveHover ? 'translateY(-1px)' : 'none'
     });
 
-    const cancelButtonStyle: React.CSSProperties = {
-        padding: '8px 12px',
-        borderRadius: 6,
-        cursor: 'pointer',
-        background: 'transparent',
-        color: 'var(--text-normal)',
-        border: `1px solid ${NEUTRAL_BORDER}`
-    };
-
+    // --- Render ---
     return (
         <div style={containerStyle}>
             <h2 style={headerStyle}>Create item</h2>
 
+            {/* Kind Selector */}
             <label style={labelStyle}>
                 Type
                 <select
@@ -99,13 +108,14 @@ export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose 
                 </select>
             </label>
 
+            {/* Name Input */}
             <label style={labelStyle}>
                 Name
                 <input
                     ref={inputRef}
                     type="text"
                     value={value}
-                    placeholder={`${kind} name`}
+                    placeholder={`(optional) ${kind} name`}
                     onChange={(e) => setValue(e.target.value)}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -118,15 +128,14 @@ export const FileNameReact: React.FC<FileNameReactProps> = ({ onSubmit, onClose 
                 />
             </label>
 
+            {/* Action Buttons */}
             <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button
                     type="button"
-                    onClick={() => submit()}
+                    onClick={() => submit()} // Button is always enabled
                     onMouseEnter={() => setSaveHover(true)}
                     onMouseLeave={() => setSaveHover(false)}
-                    style={saveButtonStyle(Boolean(trimmed))}
-                    aria-disabled={!trimmed}
-                    disabled={!trimmed}
+                    style={saveButtonStyle()}
                 >
                     Save
                 </button>
