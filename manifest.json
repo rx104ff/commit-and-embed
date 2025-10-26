@@ -1,7 +1,7 @@
 {
 	"id": "commit-and-embed",
 	"name": "Commit and Embed",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"minAppVersion": "0.15.0",
 	"description": "A plugin that enhances the note-taking experience with advanced math input capabilities.",
 	"author": "RX104FF",
